@@ -29,6 +29,18 @@ struct CategoryFormView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             TextField("图标 emoji", text: $icon)
                                 .font(.title3)
+                                .onChange(of: icon) { _, newValue in
+                                    let filtered = newValue.filter { $0.unicodeScalars.allSatisfy { scalar in
+                                        scalar.properties.isEmoji && scalar.properties.isEmojiPresentation
+                                            || scalar.value > 0x238C
+                                    }}
+                                    if let first = filtered.first {
+                                        let emoji = String(first)
+                                        if icon != emoji { icon = emoji }
+                                    } else if !newValue.isEmpty {
+                                        icon = ""
+                                    }
+                                }
                             TextField("分类名称", text: $name)
                                 .font(.body)
                         }
