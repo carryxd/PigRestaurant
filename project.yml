@@ -13,6 +13,8 @@ targets:
     platform: [iOS, macOS]
     sources:
       - PigRestaurant
+    entitlements:
+      path: PigRestaurant/PigRestaurant.entitlements
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.xiaduan.pigrestaurant
@@ -20,9 +22,15 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"
         GENERATE_INFOPLIST_FILE: YES
+        DEVELOPMENT_TEAM: CDPXXQT5XN
+        CODE_SIGN_STYLE: Automatic
         INFOPLIST_KEY_CFBundleDisplayName: "猪咪餐厅"
         INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.food-and-drink"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "获取您的位置以提供当地天气信息，优化菜谱推荐"
+        INFOPLIST_KEY_NSCameraUsageDescription: "拍摄菜品照片"
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "选择菜品照片"
       configs:
         debug:
           SWIFT_OPTIMIZATION_LEVEL: "-Onone"
