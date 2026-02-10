@@ -19,8 +19,11 @@ struct DishFormView: View {
     @State private var suitableForChildren: Bool
     @State private var tags: [String]
     @State private var newTag: String = ""
+    @State private var cookingTime: Int
     @State private var isRecognizing = false
     @State private var recognitionError: String?
+    @State private var isGeneratingImage = false
+    @State private var imageGenerationError: String?
     @AppStorage("zhipuAPIKey") private var apiKey = "f007567810874f33aabb61cb51cbe4e5.nyOcOnCAa47cbIYC"
     #if os(iOS)
     @State private var photoItem: PhotosPickerItem?
@@ -42,6 +45,7 @@ struct DishFormView: View {
         _suitableForElderly = State(initialValue: dish?.suitableForElderly ?? true)
         _suitableForChildren = State(initialValue: dish?.suitableForChildren ?? true)
         _tags = State(initialValue: dish?.tags ?? [])
+        _cookingTime = State(initialValue: dish?.cookingTime ?? 0)
     }
 
     var body: some View {
@@ -148,6 +152,12 @@ struct DishFormView: View {
                             .frame(width: 20)
                         Toggle("适合儿童", isOn: $suitableForChildren)
                     }
+                    HStack(spacing: 14) {
+                        Image(systemName: "timer")
+                            .foregroundStyle(.orange)
+                            .frame(width: 20)
+                        Stepper("制作时长：\(cookingTime == 0 ? "未知" : "约\(cookingTime)分钟")", value: $cookingTime, in: 0...180, step: 5)
+                    }
                 } header: {
                     Text("菜品属性")
                 }
@@ -227,6 +237,14 @@ struct DishFormView: View {
                 Text(recognitionError ?? "")
             }
             #endif
+            .alert("生成失败", isPresented: Binding<Bool>(
+                get: { imageGenerationError != nil },
+                set: { if !$0 { imageGenerationError = nil } }
+            )) {
+                Button("确定", role: .cancel) { imageGenerationError = nil }
+            } message: {
+                Text(imageGenerationError ?? "")
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
@@ -291,6 +309,22 @@ struct DishFormView: View {
         }
         #endif
 
+        if isGeneratingImage {
+            HStack(spacing: 6) {
+                ProgressView()
+                Text("AI 生成中...")
+                    .foregroundStyle(.purple)
+            }
+        } else {
+            Button {
+                generateDishImage()
+            } label: {
+                Label("AI 生成图片", systemImage: "sparkles")
+                    .foregroundStyle(.purple)
+            }
+            .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || isGeneratingImage)
+        }
+
         if imageData != nil {
             Button(role: .destructive) {
                 withAnimation(.easeInOut) { imageData = nil }
@@ -326,6 +360,7 @@ struct DishFormView: View {
             dish.suitableForElderly = suitableForElderly
             dish.suitableForChildren = suitableForChildren
             dish.tags = tags
+            dish.cookingTime = cookingTime
             dish.updatedAt = Date()
         } else {
             let dish = Dish(
@@ -337,7 +372,8 @@ struct DishFormView: View {
                 suitableForElderly: suitableForElderly,
                 suitableForChildren: suitableForChildren,
                 isHot: isHot,
-                spicyLevel: spicyLevel
+                spicyLevel: spicyLevel,
+                cookingTime: cookingTime
             )
             context.insert(dish)
         }
@@ -370,6 +406,7 @@ struct DishFormView: View {
                         suitableForElderly = result.suitableForElderly
                         suitableForChildren = result.suitableForChildren
                         tags = result.tags
+                        cookingTime = result.cookingTime
                         isRecognizing = false
                     }
                 }
@@ -377,6 +414,28 @@ struct DishFormView: View {
                 await MainActor.run {
                     recognitionError = error.localizedDescription
                     isRecognizing = false
+                }
+            }
+        }
+    }
+
+    private func generateDishImage() {
+        isGeneratingImage = true
+        imageGenerationError = nil
+        let prompt = "一道精美的中式菜品摄影照片，菜品名称：\(name.trimmingCharacters(in: .whitespaces))，专业美食摄影，高清，俯拍角度，精美摆盘，暖色调灯光，浅色背景"
+        Task {
+            do {
+                let data = try await AIService.generateImage(prompt: prompt, apiKey: apiKey)
+                await MainActor.run {
+                    withAnimation(.easeInOut) {
+                        imageData = data
+                    }
+                    isGeneratingImage = false
+                }
+            } catch {
+                await MainActor.run {
+                    imageGenerationError = error.localizedDescription
+                    isGeneratingImage = false
                 }
             }
         }

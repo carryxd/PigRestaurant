@@ -7,6 +7,9 @@ struct DishDetailView: View {
     let dish: Dish
     @State private var showingEdit = false
     @State private var showingDeleteAlert = false
+    @State private var isGeneratingImage = false
+    @State private var imageGenerationError: String?
+    @AppStorage("zhipuAPIKey") private var apiKey = "f007567810874f33aabb61cb51cbe4e5.nyOcOnCAa47cbIYC"
 
     var body: some View {
         ScrollView {
@@ -60,6 +63,14 @@ struct DishDetailView: View {
         } message: {
             Text("确定要删除「\(dish.name)」吗？此操作不可撤销。")
         }
+        .alert("生成失败", isPresented: Binding<Bool>(
+            get: { imageGenerationError != nil },
+            set: { if !$0 { imageGenerationError = nil } }
+        )) {
+            Button("确定", role: .cancel) { imageGenerationError = nil }
+        } message: {
+            Text(imageGenerationError ?? "")
+        }
     }
 
     @ViewBuilder
@@ -86,6 +97,28 @@ struct DishDetailView: View {
             }
             .aspectRatio(16/9, contentMode: .fill)
             .frame(maxWidth: .infinity)
+            .overlay(alignment: .bottom) {
+                Button {
+                    generateDishImage()
+                } label: {
+                    if isGeneratingImage {
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .tint(.white)
+                            Text("AI 生成中...")
+                        }
+                    } else {
+                        Label("AI 生成图片", systemImage: "sparkles")
+                    }
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(.purple.opacity(0.8), in: Capsule())
+                .padding(.bottom, 12)
+                .disabled(isGeneratingImage)
+            }
         }
     }
 
@@ -122,6 +155,10 @@ struct DishDetailView: View {
             HStack(spacing: 16) {
                 infoCard(icon: "yensign.circle", title: "价格", value: String(format: "¥%.1f", dish.price))
                 infoCard(icon: "folder", title: "分类", value: dish.category?.name ?? "未分类")
+            }
+
+            HStack(spacing: 16) {
+                infoCard(icon: "timer", title: "制作时长", value: dish.cookingTime > 0 ? "约\(dish.cookingTime)分钟" : "未知")
             }
         }
     }
@@ -260,5 +297,29 @@ struct DishDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
         .background(.background, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func generateDishImage() {
+        isGeneratingImage = true
+        imageGenerationError = nil
+        let prompt = "一道精美的中式菜品摄影照片，菜品名称：\(dish.name)，专业美食摄影，高清，俯拍角度，精美摆盘，暖色调灯光，浅色背景"
+        Task {
+            do {
+                let data = try await AIService.generateImage(prompt: prompt, apiKey: apiKey)
+                await MainActor.run {
+                    withAnimation(.easeInOut) {
+                        dish.imageData = data
+                        dish.updatedAt = Date()
+                    }
+                    try? context.save()
+                    isGeneratingImage = false
+                }
+            } catch {
+                await MainActor.run {
+                    imageGenerationError = error.localizedDescription
+                    isGeneratingImage = false
+                }
+            }
+        }
     }
 }

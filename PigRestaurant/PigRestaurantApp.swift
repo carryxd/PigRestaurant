@@ -19,7 +19,7 @@ struct PigRestaurantApp: App {
     let container: ModelContainer
 
     init() {
-        let schema = Schema([DishCategory.self, Dish.self])
+        let schema = Schema([DishCategory.self, Dish.self, DiningPerson.self])
         let config = ModelConfiguration(
             cloudKitDatabase: .automatic
         )

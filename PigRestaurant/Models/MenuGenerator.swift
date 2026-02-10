@@ -14,6 +14,10 @@ struct DailyMenu {
     var allDishes: [Dish] {
         mainDishes + sideDishes + soups + staples
     }
+
+    var totalCookingTime: Int {
+        allDishes.reduce(0) { $0 + $1.cookingTime }
+    }
 }
 
 struct MenuGenerator {

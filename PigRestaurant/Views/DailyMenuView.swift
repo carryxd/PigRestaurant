@@ -103,6 +103,11 @@ struct DailyMenuView: View {
                         HStack {
                             Text(dish.name)
                                 .font(.body.weight(.medium))
+                            if dish.cookingTime > 0 {
+                                Text("⏱ \(dish.cookingTime)分钟")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.orange)
+                            }
                             Spacer()
                             Text("¥\(dish.price, specifier: "%.0f")")
                                 .font(.subheadline.weight(.semibold))
@@ -148,13 +153,26 @@ struct DailyMenuView: View {
     }
 
     private var totalCard: some View {
-        HStack {
-            Text("预估总价")
-                .font(.headline)
-            Spacer()
-            Text("¥\(currentMenu.totalPrice, specifier: "%.0f")")
-                .font(.title3.bold())
-                .foregroundStyle(.orange)
+        VStack(spacing: 12) {
+            HStack {
+                Text("预估总价")
+                    .font(.headline)
+                Spacer()
+                Text("¥\(currentMenu.totalPrice, specifier: "%.0f")")
+                    .font(.title3.bold())
+                    .foregroundStyle(.orange)
+            }
+
+            if currentMenu.totalCookingTime > 0 {
+                HStack {
+                    Text("预估总时长")
+                        .font(.headline)
+                    Spacer()
+                    Text("约\(currentMenu.totalCookingTime)分钟")
+                        .font(.title3.bold())
+                        .foregroundStyle(.orange)
+                }
+            }
         }
         .padding(16)
         .background(

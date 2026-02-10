@@ -8,6 +8,7 @@ struct DishRecognitionResult: Codable {
     let suitableForElderly: Bool
     let suitableForChildren: Bool
     let tags: [String]
+    let cookingTime: Int
 }
 
 struct MenuRecommendationResult: Codable {
@@ -19,6 +20,14 @@ struct MenuRecommendationResult: Codable {
 }
 
 // MARK: - API Response Models
+
+private struct ImageGenerationResponse: Codable {
+    let data: [ImageData]
+
+    struct ImageData: Codable {
+        let url: String
+    }
+}
 
 private struct ChatCompletionResponse: Codable {
     let choices: [Choice]
@@ -40,6 +49,7 @@ struct AIService {
         case invalidResponse
         case networkError(String)
         case parseError(String)
+        case imageGenerationFailed(String)
 
         var errorDescription: String? {
             switch self {
@@ -51,6 +61,8 @@ struct AIService {
                 return "网络错误：\(msg)"
             case .parseError(let msg):
                 return "解析错误：\(msg)"
+            case .imageGenerationFailed(let msg):
+                return "图片生成失败：\(msg)"
             }
         }
     }
@@ -66,7 +78,8 @@ struct AIService {
           "isHot": 是否热菜（true/false）,
           "suitableForElderly": 是否适合老人（true/false）,
           "suitableForChildren": 是否适合儿童（true/false）,
-          "tags": ["标签1", "标签2"]
+          "tags": ["标签1", "标签2"],
+          "cookingTime": 预估制作时长（数字，单位分钟）
         }
         只返回JSON，不要有其他内容。
         """
@@ -173,6 +186,71 @@ struct AIService {
         } catch {
             throw AIError.parseError("JSON 解析失败：\(error.localizedDescription)")
         }
+    }
+
+    // MARK: - 图片生成
+
+    static func generateImage(prompt: String, apiKey: String) async throws -> Data {
+        let imageGenURL = "https://open.bigmodel.cn/api/paas/v4/images/generations"
+
+        let requestBody: [String: Any] = [
+            "model": "cogview-4-250304",
+            "prompt": prompt,
+            "size": "1024x1024",
+            "n": 1
+        ]
+
+        let jsonData = try JSONSerialization.data(withJSONObject: requestBody)
+
+        guard let url = URL(string: imageGenURL) else {
+            throw AIError.networkError("无效的 URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.httpBody = jsonData
+        request.timeoutInterval = 120
+
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            throw AIError.networkError(error.localizedDescription)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+            let responseBody = String(data: data, encoding: .utf8) ?? ""
+            throw AIError.networkError("HTTP \(statusCode): \(responseBody)")
+        }
+
+        let imageResponse: ImageGenerationResponse
+        do {
+            imageResponse = try JSONDecoder().decode(ImageGenerationResponse.self, from: data)
+        } catch {
+            throw AIError.invalidResponse
+        }
+
+        guard let imageURLString = imageResponse.data.first?.url,
+              let imageURL = URL(string: imageURLString) else {
+            throw AIError.imageGenerationFailed("未获取到图片地址")
+        }
+
+        let (imageData, _): (Data, URLResponse)
+        do {
+            (imageData, _) = try await URLSession.shared.data(from: imageURL)
+        } catch {
+            throw AIError.imageGenerationFailed("图片下载失败：\(error.localizedDescription)")
+        }
+
+        guard !imageData.isEmpty else {
+            throw AIError.imageGenerationFailed("下载的图片数据为空")
+        }
+
+        return imageData
     }
 
     // MARK: - Private Helpers

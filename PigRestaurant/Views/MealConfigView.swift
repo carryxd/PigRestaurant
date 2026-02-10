@@ -15,6 +15,9 @@ struct MealConfigView: View {
     @State private var aiError: String?
     @StateObject private var locationManager = LocationManager()
     @AppStorage("zhipuAPIKey") private var apiKey = "f007567810874f33aabb61cb51cbe4e5.nyOcOnCAa47cbIYC"
+    @Query(sort: \DiningPerson.createdAt) private var allPersons: [DiningPerson]
+    @State private var selectedPersons: Set<String> = []
+    @State private var showingPersonList = false
 
     private let solarTerm = SolarTerm.current()
 
@@ -22,6 +25,7 @@ struct MealConfigView: View {
         NavigationStack {
             Form {
                 headerSection
+                diningPersonsSection
                 participantSection
                 dietaryInfoSection
                 generateSection
@@ -51,6 +55,10 @@ struct MealConfigView: View {
             .onChange(of: config.adultWomen) { _, _ in updateTotalPeople() }
             .onChange(of: config.children) { _, _ in updateTotalPeople() }
             .onChange(of: config.elderly) { _, _ in updateTotalPeople() }
+            .onChange(of: selectedPersons) { _, _ in updateFromSelectedPersons() }
+            .sheet(isPresented: $showingPersonList) {
+                DiningPersonListView()
+            }
         }
         #if os(macOS)
         .frame(minWidth: 480, minHeight: 520)
@@ -73,6 +81,67 @@ struct MealConfigView: View {
             .padding(.vertical, 4)
         } header: {
             Text("今日概览")
+        }
+    }
+
+    private var diningPersonsSection: some View {
+        Section {
+            if allPersons.isEmpty {
+                Text("暂无就餐人员，点击下方按钮添加")
+                    .foregroundStyle(.secondary)
+                    .font(.subheadline)
+            } else {
+                ForEach(allPersons) { person in
+                    HStack(spacing: 12) {
+                        Text(person.emoji)
+                            .font(.title3)
+                            .frame(width: 28)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(person.name)
+                                .fontWeight(.medium)
+                            Text(person.tasteDescription)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        if selectedPersons.contains(person.name) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.orange)
+                        } else {
+                            Image(systemName: "circle")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation(.easeInOut) {
+                            if selectedPersons.contains(person.name) {
+                                selectedPersons.remove(person.name)
+                            } else {
+                                selectedPersons.insert(person.name)
+                            }
+                        }
+                        hapticFeedback(.light)
+                    }
+                }
+            }
+
+            Button {
+                hapticFeedback(.light)
+                showingPersonList = true
+            } label: {
+                Label("管理就餐人员", systemImage: "person.badge.plus")
+                    .font(.subheadline)
+            }
+        } header: {
+            Text("就餐人员")
+        } footer: {
+            if !selectedDiningPersons.isEmpty {
+                Text("已选 \(selectedDiningPersons.count) 人，将自动计算人数和饮食偏好")
+            }
         }
     }
 
@@ -177,7 +246,12 @@ struct MealConfigView: View {
         if config.totalPeople >= 6 {
             notes.append("人数较多，建议增加汤品")
         }
-        return notes
+        for person in selectedDiningPersons {
+            if person.dislikesSpicy { notes.append("\(person.name)忌辣") }
+            if person.dislikesOily { notes.append("\(person.name)忌油腻") }
+            if person.likesLight { notes.append("\(person.name)爱清淡") }
+        }
+        return Array(Set(notes))
     }
 
     private var formattedDate: String {
@@ -193,6 +267,25 @@ struct MealConfigView: View {
 
     private func updateTotalPeople() {
         config.totalPeople = config.adultMen + config.adultWomen + config.children + config.elderly
+    }
+
+    private var selectedDiningPersons: [DiningPerson] {
+        allPersons.filter { selectedPersons.contains($0.name) }
+    }
+
+    private func updateFromSelectedPersons() {
+        let selected = selectedDiningPersons
+        guard !selected.isEmpty else { return }
+        let childCount = selected.filter { $0.isChild }.count
+        let elderlyCount = selected.filter { $0.isElderly }.count
+        let adultCount = selected.count - childCount - elderlyCount
+        let menCount = adultCount / 2
+        let womenCount = adultCount - menCount
+        config.adultMen = menCount
+        config.adultWomen = womenCount
+        config.children = childCount
+        config.elderly = elderlyCount
+        config.totalPeople = selected.count
     }
 
     private func loadDishes() {
@@ -236,11 +329,17 @@ struct MealConfigView: View {
             return "\(dish.name)(¥\(Int(dish.price)),\(temp),\(spicy),标签:\(tags))"
         }.joined(separator: "\n")
 
+        var fullPromptText = dishListText
+        if !selectedDiningPersons.isEmpty {
+            let personInfo = selectedDiningPersons.map { "\($0.name): \($0.tasteDescription)" }.joined(separator: "\n")
+            fullPromptText = "【就餐人员口味偏好】\n\(personInfo)\n\n" + dishListText
+        }
+
         let dishMap = Dictionary(allDishes.map { ($0.name, $0) }, uniquingKeysWith: { _, last in last })
 
         do {
             let result = try await AIService.recommendMenu(
-                dishListText: dishListText,
+                dishListText: fullPromptText,
                 config: config,
                 weather: weather,
                 solarTerm: solarTerm,

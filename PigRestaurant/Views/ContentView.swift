@@ -19,6 +19,7 @@ struct ContentView: View {
     @State private var randomDish: Dish?
     @State private var showingMealConfig = false
     @State private var showingSettings = false
+    @State private var showingPersonList = false
 
     var body: some View {
         ZStack {
@@ -52,6 +53,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView()
+        }
+        .sheet(isPresented: $showingPersonList) {
+            DiningPersonListView()
         }
         .alert("确认删除", isPresented: Binding(
             get: { dishToDelete != nil },
@@ -144,6 +148,14 @@ struct ContentView: View {
                             showingSettings = true
                         } label: {
                             Label("设置", systemImage: "gearshape")
+                        }
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            hapticFeedback(.light)
+                            showingPersonList = true
+                        } label: {
+                            Label("就餐人员", systemImage: "person.2")
                         }
                     }
                     ToolbarItem(placement: .topBarTrailing) {
@@ -333,6 +345,14 @@ struct ContentView: View {
                     showingSettings = true
                 }) {
                     Label("设置", systemImage: "gearshape")
+                }
+            }
+            ToolbarItem {
+                Button(action: {
+                    hapticFeedback(.light)
+                    showingPersonList = true
+                }) {
+                    Label("就餐人员", systemImage: "person.2")
                 }
             }
             ToolbarItem {
@@ -593,6 +613,9 @@ struct DishCardView: View {
                                 icon: "figure.seated.side"
                             )
                         }
+                        if dish.cookingTime > 0 {
+                            cookingTimeBadge
+                        }
                         Spacer(minLength: 0)
                     }
                 }
@@ -740,6 +763,15 @@ struct DishCardView: View {
         Label(temperatureText, systemImage: temperatureIcon)
             .font(.caption2.weight(.bold))
             .foregroundStyle(temperatureColor)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(.ultraThinMaterial, in: Capsule())
+    }
+
+    private var cookingTimeBadge: some View {
+        Label("⏱ \(dish.cookingTime)分钟", systemImage: "timer")
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(.orange)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(.ultraThinMaterial, in: Capsule())

@@ -29,6 +29,7 @@ final class Dish {
     var suitableForChildren: Bool = true
     var isHot: Bool = true
     var spicyLevel: Int = 0
+    var cookingTime: Int = 0
 
     init(
         name: String,
@@ -39,7 +40,8 @@ final class Dish {
         suitableForElderly: Bool = true,
         suitableForChildren: Bool = true,
         isHot: Bool = true,
-        spicyLevel: Int = 0
+        spicyLevel: Int = 0,
+        cookingTime: Int = 0
     ) {
         self.name = name
         self.price = price
@@ -50,6 +52,7 @@ final class Dish {
         self.suitableForChildren = suitableForChildren
         self.isHot = isHot
         self.spicyLevel = spicyLevel
+        self.cookingTime = cookingTime
         self.createdAt = Date()
         self.updatedAt = Date()
     }
