@@ -17,6 +17,7 @@ struct ContentView: View {
         } detail: {
             detail
         }
+        .tint(.orange)
         .sheet(isPresented: $showingAddDish) {
             DishFormView(category: selectedCategory)
         }
@@ -33,22 +34,42 @@ struct ContentView: View {
 
     private var sidebar: some View {
         List(selection: $selectedCategory) {
-            ForEach(categories) { cat in
-                Label {
-                    Text(cat.name)
-                } icon: {
-                    Text(cat.icon)
+            Section {
+                ForEach(categories) { cat in
+                    HStack(spacing: 10) {
+                        Text(cat.icon)
+                            .font(.title3)
+                            .frame(width: 28)
+                        Text(cat.name)
+                            .fontWeight(.medium)
+                        Spacer()
+                        Text("\(cat.dishes.count)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(.quaternary, in: Capsule())
+                    }
+                    .tag(cat)
+                    .contextMenu {
+                        Button { editingCategory = cat } label: {
+                            Label("编辑分类", systemImage: "pencil")
+                        }
+                        Divider()
+                        Button(role: .destructive) { deleteCategory(cat) } label: {
+                            Label("删除分类", systemImage: "trash")
+                        }
+                    }
                 }
-                .tag(cat)
-                .contextMenu {
-                    Button("编辑分类") { editingCategory = cat }
-                    Button("删除分类", role: .destructive) { deleteCategory(cat) }
-                }
+            } header: {
+                Text("菜品分类")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
             }
         }
         .navigationTitle("🐷 猪咪餐厅")
         #if os(macOS)
-        .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
+        .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 320)
         #endif
         .toolbar {
             ToolbarItem {
@@ -74,10 +95,8 @@ struct ContentView: View {
     private var detail: some View {
         Group {
             if let cat = selectedCategory {
-                VStack(spacing: 0) {
-                    dishGrid
-                        .navigationTitle("\(cat.icon) \(cat.name)")
-                }
+                dishGrid
+                    .navigationTitle("\(cat.icon) \(cat.name)")
                 #if os(iOS)
                 .searchable(text: $searchText, prompt: "搜索菜品")
                 #endif
@@ -86,7 +105,7 @@ struct ContentView: View {
                     ToolbarItem {
                         TextField("搜索菜品", text: $searchText)
                             .textFieldStyle(.roundedBorder)
-                            .frame(width: 160)
+                            .frame(width: 180)
                     }
                     #endif
                     ToolbarItem {
@@ -96,7 +115,12 @@ struct ContentView: View {
                     }
                 }
             } else {
-                ContentUnavailableView("选择一个分类", systemImage: "fork.knife", description: Text("从左侧选择菜品分类开始浏览"))
+                ContentUnavailableView {
+                    Label("选择一个分类", systemImage: "fork.knife")
+                        .font(.title2)
+                } description: {
+                    Text("从左侧选择菜品分类开始浏览")
+                }
             }
         }
     }
@@ -104,37 +128,58 @@ struct ContentView: View {
     private var dishGrid: some View {
         ScrollView {
             if filteredDishes.isEmpty {
-                ContentUnavailableView("暂无菜品", systemImage: "fork.knife.circle", description: Text("点击右上角 + 添加菜品"))
-                    .padding(.top, 100)
+                VStack(spacing: 16) {
+                    Image(systemName: "fork.knife.circle")
+                        .font(.system(size: 56))
+                        .foregroundStyle(.tertiary)
+                    Text("暂无菜品")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text("点击右上角 + 添加菜品")
+                        .font(.subheadline)
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 120)
             } else {
-                LazyVGrid(columns: gridColumns, spacing: 16) {
-                    ForEach(filteredDishes) { dish in
+                LazyVGrid(columns: gridColumns, spacing: 20) {
+                    ForEach(Array(filteredDishes.enumerated()), id: \.element.id) { index, dish in
                         DishCardView(dish: dish) {
                             editingDish = dish
                         } onDelete: {
-                            deleteDish(dish)
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                deleteDish(dish)
+                            }
                         }
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 0.8).combined(with: .opacity),
+                            removal: .scale(scale: 0.6).combined(with: .opacity)
+                        ))
+                        .animation(.spring(response: 0.4, dampingFraction: 0.8).delay(Double(index) * 0.03), value: filteredDishes.count)
                     }
                 }
-                .padding()
+                .padding(20)
             }
         }
+        .background(Color.gray.opacity(0.06))
     }
 
     private var gridColumns: [GridItem] {
         #if os(macOS)
-        [GridItem(.adaptive(minimum: 180, maximum: 240), spacing: 16)]
+        [GridItem(.adaptive(minimum: 190, maximum: 260), spacing: 20)]
         #else
-        [GridItem(.adaptive(minimum: 160, maximum: 200), spacing: 12)]
+        [GridItem(.adaptive(minimum: 160, maximum: 200), spacing: 14)]
         #endif
     }
 
     private func deleteCategory(_ cat: DishCategory) {
-        if selectedCategory == cat {
-            selectedCategory = categories.first { $0 != cat }
+        withAnimation {
+            if selectedCategory == cat {
+                selectedCategory = categories.first { $0 != cat }
+            }
+            context.delete(cat)
+            try? context.save()
         }
-        context.delete(cat)
-        try? context.save()
     }
 
     private func deleteDish(_ dish: Dish) {
@@ -147,27 +192,53 @@ struct DishCardView: View {
     let dish: Dish
     let onEdit: () -> Void
     let onDelete: () -> Void
+    @State private var isHovering = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            dishImage
-            VStack(alignment: .leading, spacing: 4) {
-                Text(dish.name)
-                    .font(.headline)
-                    .lineLimit(1)
-                Text("¥\(dish.price, specifier: "%.1f")")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.red)
+            ZStack(alignment: .bottomTrailing) {
+                dishImage
+                Text("¥\(dish.price, specifier: "%.0f")")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.orange.gradient, in: Capsule())
+                    .padding(8)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(dish.name)
+                    .font(.system(.body, design: .rounded, weight: .semibold))
+                    .lineLimit(1)
+
+                HStack(spacing: 4) {
+                    Image(systemName: "clock")
+                        .font(.caption2)
+                    Text(dish.updatedAt, style: .relative)
+                        .font(.caption2)
+                }
+                .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
         }
         .background(.background)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(color: .black.opacity(isHovering ? 0.12 : 0.06), radius: isHovering ? 12 : 6, y: isHovering ? 6 : 3)
+        .scaleEffect(isHovering ? 1.02 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovering)
+        .onHover { hovering in
+            isHovering = hovering
+        }
         .contextMenu {
-            Button("编辑", action: onEdit)
-            Button("删除", role: .destructive, action: onDelete)
+            Button { onEdit() } label: {
+                Label("编辑", systemImage: "pencil")
+            }
+            Divider()
+            Button(role: .destructive) { onDelete() } label: {
+                Label("删除", systemImage: "trash")
+            }
         }
     }
 
@@ -180,10 +251,17 @@ struct DishCardView: View {
                 .clipped()
         } else {
             ZStack {
-                Color(.systemGray5)
+                LinearGradient(
+                    colors: [
+                        Color.orange.opacity(0.08),
+                        Color.orange.opacity(0.15)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
                 Text("🍽️")
-                    .font(.system(size: 40))
-                    .opacity(0.4)
+                    .font(.system(size: 44))
+                    .opacity(0.5)
             }
             .aspectRatio(4/3, contentMode: .fill)
         }

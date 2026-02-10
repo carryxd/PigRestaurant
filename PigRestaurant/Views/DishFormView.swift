@@ -30,22 +30,42 @@ struct DishFormView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("基本信息") {
-                    TextField("菜品名称", text: $name)
-                    TextField("价格", text: $price)
-                        #if os(iOS)
-                        .keyboardType(.decimalPad)
-                        #endif
-                    Picker("分类", selection: $selectedCategory) {
-                        Text("未选择").tag(nil as DishCategory?)
-                        ForEach(categories) { cat in
-                            Text("\(cat.icon) \(cat.name)").tag(cat as DishCategory?)
-                        }
+                Section {
+                    HStack(spacing: 14) {
+                        Image(systemName: "character.cursor.ibeam")
+                            .foregroundStyle(.orange)
+                            .frame(width: 20)
+                        TextField("菜品名称", text: $name)
                     }
+                    HStack(spacing: 14) {
+                        Image(systemName: "yensign.circle")
+                            .foregroundStyle(.orange)
+                            .frame(width: 20)
+                        TextField("价格", text: $price)
+                            #if os(iOS)
+                            .keyboardType(.decimalPad)
+                            #endif
+                    }
+                    HStack(spacing: 14) {
+                        Image(systemName: "folder")
+                            .foregroundStyle(.orange)
+                            .frame(width: 20)
+                        Picker("分类", selection: $selectedCategory) {
+                            Text("未选择").tag(nil as DishCategory?)
+                            ForEach(categories) { cat in
+                                Text("\(cat.icon) \(cat.name)").tag(cat as DishCategory?)
+                            }
+                        }
+                        .labelsHidden()
+                    }
+                } header: {
+                    Text("基本信息")
                 }
 
-                Section("图片") {
+                Section {
                     imageSection
+                } header: {
+                    Text("菜品图片")
                 }
             }
             .navigationTitle(existingDish != nil ? "编辑菜品" : "添加菜品")
@@ -58,6 +78,7 @@ struct DishFormView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(existingDish != nil ? "保存" : "添加") { save() }
+                        .fontWeight(.semibold)
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
@@ -68,7 +89,7 @@ struct DishFormView: View {
             }
         }
         #if os(macOS)
-        .frame(minWidth: 400, minHeight: 350)
+        .frame(minWidth: 420, minHeight: 380)
         #endif
     }
 
@@ -78,26 +99,37 @@ struct DishFormView: View {
             Image(platformImage: img)
                 .resizable()
                 .aspectRatio(4/3, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
         }
 
         #if os(iOS)
         PhotosPicker(selection: $photoItem, matching: .images) {
-            Label("选择图片", systemImage: "photo.on.rectangle")
+            Label("选择图片", systemImage: "photo.on.rectangle.angled")
+                .foregroundStyle(.orange)
         }
         .onChange(of: photoItem) { _, newItem in
             Task {
                 if let data = try? await newItem?.loadTransferable(type: Data.self) {
-                    imageData = data
+                    withAnimation(.easeInOut) {
+                        imageData = data
+                    }
                 }
             }
         }
         #else
-        Button("选择图片") { pickImageMac() }
+        Button { pickImageMac() } label: {
+            Label("选择图片", systemImage: "photo.on.rectangle.angled")
+                .foregroundStyle(.orange)
+        }
         #endif
 
         if imageData != nil {
-            Button("移除图片", role: .destructive) { imageData = nil }
+            Button(role: .destructive) {
+                withAnimation(.easeInOut) { imageData = nil }
+            } label: {
+                Label("移除图片", systemImage: "trash")
+            }
         }
     }
 

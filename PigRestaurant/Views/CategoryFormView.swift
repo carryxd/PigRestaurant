@@ -19,26 +19,40 @@ struct CategoryFormView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("分类信息") {
-                    HStack {
-                        Text("图标")
-                        Spacer()
-                        TextField("", text: $icon)
-                            .frame(width: 50)
-                            .multilineTextAlignment(.center)
-                            .font(.title)
+                Section {
+                    HStack(spacing: 16) {
+                        Text(icon.isEmpty ? "🍽️" : icon)
+                            .font(.system(size: 44))
+                            .frame(width: 64, height: 64)
+                            .background(Color.orange.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        VStack(alignment: .leading, spacing: 8) {
+                            TextField("图标 emoji", text: $icon)
+                                .font(.title3)
+                            TextField("分类名称", text: $name)
+                                .font(.body)
+                        }
                     }
-                    TextField("分类名称", text: $name)
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("分类信息")
                 }
 
                 if existingCategory != nil {
                     Section {
-                        Button("删除分类", role: .destructive) {
+                        Button(role: .destructive) {
                             if let cat = existingCategory {
                                 context.delete(cat)
                                 try? context.save()
                             }
                             dismiss()
+                        } label: {
+                            HStack {
+                                Spacer()
+                                Label("删除此分类", systemImage: "trash")
+                                    .fontWeight(.medium)
+                                Spacer()
+                            }
                         }
                     }
                 }
@@ -53,12 +67,13 @@ struct CategoryFormView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(existingCategory != nil ? "保存" : "添加") { save() }
+                        .fontWeight(.semibold)
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
         }
         #if os(macOS)
-        .frame(minWidth: 350, minHeight: 250)
+        .frame(minWidth: 380, minHeight: 220)
         #endif
     }
 

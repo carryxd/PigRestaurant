@@ -15,5 +15,10 @@ struct PigRestaurantApp: App {
                 fatalError("Failed to create ModelContainer: \(error)")
             }
         }
+        #if os(macOS)
+        .defaultSize(width: 960, height: 680)
+        .windowStyle(.titleBar)
+        .windowToolbarStyle(.unified(showsTitle: true))
+        #endif
     }
 }
